@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>【究極】ランダム覚醒アラーム (算数→ランダムゲーム)</title>
+    <style>
+        /* --- CSS: スタイルシート --- */
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #000;
+            font-family: 'Segoe UI', sans-serif;
+            color: #fff;
+            overflow: hidden;
+            touch-action: none; 
+        }
+
+        /* ⚠️ 画面点滅（チカチカ）のCSSアニメーションを削除しました。 */
+        
+        /* 共通コンテナ */
+        .container {
+            width: 90%;
+            max-width: 400px;
+            text-align: center;
+            z-index: 10;
+        }
+
+        /* カードデザイン */
+        .card {
+            background-color: #222;
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid #444;
+            box-shadow: 0 4px 15px rgba(255,0,0,0.3);
+        }
+
+        input, select {
+            padding: 10px;
+            font-size: 1.2em;
+            background: #333;
+            color: white;
+            border: 1px solid #555;
+            border-radius: 5px;
+            margin: 5px;
+            width: 80px;
+            text-align: center;
+        }
+        select { width: 200px; text-align: left; }
+
+        button.btn-primary {
+            width: 100%;
+            padding: 15px;
+            font-size: 1.3em;
+            margin-top: 15px;
+            cursor: pointer;
+            border-radius: 8px;
+            border: none;
+            background: linear-gradient(45deg, #d32f2f, #b71c1c);
+            color: white;
+            font-weight: bold;
+            box-shadow: 0 4px 0 #7f0000;
+        }
+        button.btn-primary:active { transform: translateY(4px); box-shadow: none; }
+
+        /* --- ステージ1: 算数モーダル --- */
+        #stage-math {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.95);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 200;
+        }
+        #math-q { font-size: 3.5em; margin-bottom: 20px; color: #ffeb3b; font-weight: bold; }
+        #math-a { font-size: 2em; width: 150px; text-align: center; margin-bottom: 20px; }
+        .error-msg { color: #ff4d4d; font-weight: bold; height: 1.2em; }
+
+        /* --- ステージ2A: ミニゲーム (逃走ターゲット) --- */
+        #stage-game {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-color: rgba(20, 0, 0, 0.9);
+            z-index: 100;
+            cursor: crosshair; 
+        }
+        #game-bg-click-area {
+            width: 100%; height: 100%;
+            position: absolute;
+            top: 0; left: 0;
+        }
+        #game-target-btn {
+            position: absolute;
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            background: radial-gradient(circle, #00e676 0%, #00600f 100%);
+            border: 3px solid #fff;
+            box-shadow: 0 0 20px #00e676;
+            color: white;
+            font-weight: bold;
+            font-size: 1.2em;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 150;
+            user-select: none;
+            transition: top 0.1s, left 0.1s; 
+        }
+        #game-status {
+            position: absolute;
+            top: 20px; left: 0; width: 100%;
+            text-align: center;
+            font-size: 1.5em;
+            color: white;
+            pointer-events: none;
+            z-index: 160;
+            text-shadow: 0 2px 4px #000;
+        }
+
+        /* --- ステージ2B: 配色パズル --- */
+        #stage-color {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.95);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 200;
+        }
+        #color-pattern-display {
+            width: 250px; 
+            height: 50px; 
+            margin: 15px auto; 
+            border: 2px solid #fff;
+            overflow: hidden;
+            text-align: center;
+        }
+        #color-input-grid {
+            display: grid; 
+            grid-template-columns: repeat(2, 1fr); 
+            gap: 10px; 
+            width: 250px; 
+            margin: 20px auto;
+        }
+        #color-input-grid button {
+            height: 50px; 
+            border: none; 
+            border-radius: 5px; 
+            cursor: pointer;
+            box-sizing: border-box;
+            transition: border 0.1s;
+        }
+        .highlight-red { color: #ff4d4d; font-weight: bold; }
+
+    </style>
+</head>
+<body>
+
+    <div id="setup-screen" class="container">
+        <div class="card">
+            <h1 style="color:#ff5252; margin-bottom: 5px;">👿 究極アラーム</h1>
+            <p style="font-size:0.8em; color:#aaa;">算数クリア後、ゲームがランダム決定</p>
+            
+            <div>
+                <label>時間</label>
+                <input type="number" id="alarm-h" value="0" min="0">
+                <label>分</label>
+                <input type="number" id="alarm-m" value="1" min="0">
+            </div>
+            
+            <div style="margin-top: 15px;">
+                <label>音モード</label><br>
+                <select id="sound-mode">
+                    <option value="HEAVY">💥 爆音・重低音</option>
+                    <option value="MOSQUITO">🦟 脳内破壊モスキート</option>
+                    <option value="SIREN">🚨 非常警報</option>
+                </select>
+            </div>
+            
+            <button id="btn-set" class="btn-primary">アラームセット</button>
+        </div>
+    </div>
+
+    <div id="countdown-screen" class="container" style="display: none;">
+        <div class="card">
+            <h2 style="color:#00e676;">待機中...</h2>
+            <div id="timer-display" style="font-size: 3.5em; font-family: monospace;">00:00:00</div>
+            <p style="color:#ff4d4d; font-weight:bold;">※音量を最大にしてください</p>
+            <button id="btn-cancel" style="background:#555; padding:10px; width:100%; border:none; color:white; border-radius:5px;">解除</button>
+        </div>
+    </div>
+
+    <div id="stage-math" style="display: none;">
+        <h2 style="color:#ffeb3b;">STAGE 1: 脳を起こせ</h2>
+        <div id="math-q"></div>
+        <input type="number" id="math-a" placeholder="答え" inputmode="numeric">
+        <p id="math-msg" class="error-msg"></p>
+        <button id="btn-math-submit" class="btn-primary" style="width: 200px;">回答</button>
+    </div>
+
+    <div id="stage-game" style="display: none;">
+        <div id="game-status">
+            ターゲットをタップせよ<br>
+            残り: <span id="game-count" style="font-size:1.5em;">5</span> 回
+            <div style="font-size:0.6em; color:#ff4d4d;">(背景タップでリセット！)</div>
+        </div>
+        <div id="game-bg-click-area"></div>
+        <div id="game-target-btn">TAP ME</div>
+    </div>
+    
+    <div id="stage-color" style="display: none;">
+        <div class="container">
+            <h2 style="color:#2196F3;">STAGE 2: 色の記憶</h2>
+            <p style="font-size:1.1em;">見本と同じ順番で色をタップしてください。</p>
+            <div id="color-pattern-display"></div>
+            <div id="color-input-grid">
+                </div>
+            <p id="color-msg" class="error-msg"></p>
+            <p>残りチャンス: <span id="color-attempts" class="highlight-red">3</span> 回</p>
+        </div>
+    </div>
+
+
+    <script>
+        /* --- 音響システム --- */
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        const audioCtx = new AudioContext();
+        
+        const compressor = audioCtx.createDynamicsCompressor();
+        compressor.threshold.setValueAtTime(-50, audioCtx.currentTime);
+        compressor.ratio.setValueAtTime(12, audioCtx.currentTime);
+        compressor.connect(audioCtx.destination);
+        
+        const masterGain = audioCtx.createGain();
+        masterGain.connect(compressor);
+
+        function playSound(type) {
+            const t = audioCtx.currentTime;
+            masterGain.gain.cancelScheduledValues(t);
+            masterGain.gain.setValueAtTime(1.0, t); 
+
+            if (type === 'HEAVY') {
+                const osc = audioCtx.createOscillator();
+                const g = audioCtx.createGain();
+                osc.frequency.setValueAtTime(150, t);
+                osc.frequency.exponentialRampToValueAtTime(30, t + 0.5);
+                g.gain.setValueAtTime(1, t);
+                g.gain.exponentialRampToValueAtTime(0.01, t + 0.5);
+                osc.connect(g).connect(masterGain);
+                osc.start(t); osc.stop(t + 0.5);
+                
+                const osc2 = audioCtx.createOscillator();
+                const g2 = audioCtx.createGain();
+                osc2.type = 'square';
+                osc2.frequency.setValueAtTime(100, t);
+                osc2.frequency.exponentialRampToValueAtTime(10, t + 0.1);
+                g2.gain.setValueAtTime(0.3, t);
+                g2.gain.exponentialRampToValueAtTime(0.01, t + 0.1);
+                osc2.connect(g2).connect(masterGain);
+                osc2.start(t); osc2.stop(t + 0.1);
+
+            } else if (type === 'MOSQUITO') {
+                const osc = audioCtx.createOscillator();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(4000, t);
+                osc.frequency.linearRampToValueAtTime(6000, t + 0.2);
+                const g = audioCtx.createGain();
+                g.gain.setValueAtTime(0.3, t);
+                g.gain.linearRampToValueAtTime(0, t + 0.3);
+                osc.connect(g).connect(masterGain);
+                osc.start(t); osc.stop(t + 0.3);
+            } else {
+                const osc = audioCtx.createOscillator();
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(800, t);
+                osc.frequency.linearRampToValueAtTime(1200, t + 0.3);
+                const g = audioCtx.createGain();
+                g.gain.setValueAtTime(0.2, t);
+                osc.connect(g).connect(masterGain);
+                osc.start(t); osc.stop(t + 0.3);
+            }
+        }
+        
+        /* --- グローバル変数 --- */
+        let alarmTimer = null;
+        let soundInterval = null;
+        let moveInterval = null; // 移動用のインターバル
+        let isAlarming = false;
+        let mathAnswer = 0;
+        
+        // 逃走ターゲットゲーム用
+        const GAME_GOAL = 5;
+        let gameClickCount = 0;
+
+        // 配色パズルゲーム用
+        const COLOR_PATTERN_LENGTH = 4;
+        const MAX_ATTEMPTS = 3;
+        let colorGamePattern = [];
+        let colorGameInput = [];
+        let colorGameAttempts = MAX_ATTEMPTS;
+
+
+        // 要素取得
+        const screens = {
+            setup: document.getElementById('setup-screen'),
+            countdown: document.getElementById('countdown-screen'),
+            math: document.getElementById('stage-math'),
+            game: document.getElementById('stage-game'), 
+            color: document.getElementById('stage-color') 
+        };
+
+        // --- 制御ロジック ---
+
+        function resetAll() {
+            isAlarming = false;
+            if(soundInterval) clearInterval(soundInterval);
+            if(alarmTimer) clearInterval(alarmTimer);
+            if(moveInterval) clearInterval(moveInterval); // 🔴【修正点】移動を停止
+            document.body.classList.remove('strobe-mode'); // 🔴【修正点】点滅クラスの削除
+            document.body.style.backgroundColor = "#000";
+            
+            Object.values(screens).forEach(screen => screen.style.display = 'none');
+            screens.setup.style.display = 'block';
+        }
+
+        function startAlarm() {
+            isAlarming = true;
+            screens.countdown.style.display = 'none';
+            screens.math.style.display = 'flex';
+            // 🔴 画面点滅（strobe-mode）のクラス付与を削除しました。
+
+            const mode = document.getElementById('sound-mode').value;
+            soundInterval = setInterval(() => {
+                playSound(mode);
+            }, 600); 
+
+            generateMath();
+        }
+
+        function generateMath() {
+            const a = Math.floor(Math.random() * 40) + 10; 
+            const b = Math.floor(Math.random() * 40) + 10; 
+            mathAnswer = a + b;
+            document.getElementById('math-q').innerText = `${a} + ${b}`;
+            document.getElementById('math-a').value = '';
+            document.getElementById('math-a').focus();
+            document.getElementById('math-msg').innerText = '';
+        }
+
+        function checkMath() {
+            const input = parseInt(document.getElementById('math-a').value);
+            const msg = document.getElementById('math-msg');
+            
+            if (input === mathAnswer) {
+                const gameChoice = Math.random();
+                if (gameChoice < 0.5) {
+                    startMiniGame(); // 逃走ターゲットゲーム
+                } else {
+                    startColorGame(); // 配色パズルゲーム
+                }
+            } else {
+                msg.innerText = "不正解！音が止まらない！";
+                playSound('SIREN'); 
+                document.getElementById('math-a').value = '';
+                setTimeout(() => { msg.innerText = ''; }, 2000);
+            }
+        }
+        document.getElementById('btn-math-submit').addEventListener('click', checkMath);
+        document.getElementById('math-a').addEventListener('keypress', (e) => {
+            if(e.key === 'Enter') checkMath();
+        });
+
+
+        // --- STAGE 2A: 逃走ターゲットゲーム ---
+        function startMiniGame() {
+            screens.math.style.display = 'none';
+            screens.game.style.display = 'block';
+            gameClickCount = 0;
+            updateGameDisplay();
+            
+            // 🔴【修正点】ボタンの自動移動を開始
+            if (moveInterval) clearInterval(moveInterval);
+            moveInterval = setInterval(moveTarget, 500); // 0.5秒ごとに移動
+            moveTarget(); // 最初の位置へ移動
+        }
+
+        function updateGameDisplay() {
+            const remain = GAME_GOAL - gameClickCount;
+            document.getElementById('game-count').innerText = remain;
+            if (remain <= 0) {
+                finishAlarm();
+            }
+        }
+
+        function moveTarget() {
+            const btn = document.getElementById('game-target-btn');
+            // 画面の端すぎない範囲(10%~80%)に移動
+            const x = Math.floor(Math.random() * 70) + 10; 
+            const y = Math.floor(Math.random() * 70) + 10;
+            btn.style.left = x + '%';
+            btn.style.top = y + '%';
+        }
+
+        document.getElementById('game-target-btn').addEventListener('click', (e) => {
+            e.stopPropagation(); 
+            gameClickCount++;
+            
+            const osc = audioCtx.createOscillator();
+            osc.frequency.setValueAtTime(880, audioCtx.currentTime);
+            osc.connect(audioCtx.destination);
+            osc.start(); osc.stop(audioCtx.currentTime + 0.1);
+            
+            updateGameDisplay();
+            // 自動移動はインターバルが担当
+        });
+
+        document.getElementById('game-bg-click-area').addEventListener('click', () => {
+            if (gameClickCount > 0) {
+                gameClickCount = 0;
+                updateGameDisplay();
+                
+                const osc = audioCtx.createOscillator();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+                osc.frequency.linearRampToValueAtTime(100, audioCtx.currentTime + 0.3);
+                osc.connect(audioCtx.destination);
+                osc.start(); osc.stop(audioCtx.currentTime + 0.3);
+                
+                alert("ミス！回数がリセットされました！");
+                moveTarget(); // リセット時に場所を移動
+            }
+        });
+
+
+        // --- STAGE 2B: 配色パズルゲーム ---
+
+        function startColorGame() {
+            // 🔴【修正点】移動処理を確実に停止
+            if (moveInterval) clearInterval(moveInterval); 
+
+            screens.math.style.display = 'none';
+            screens.color.style.display = 'flex';
+            
+            colorGameInput = [];
+            colorGameAttempts = MAX_ATTEMPTS;
+            document.getElementById('color-attempts').innerText = colorGameAttempts;
+
+            if (!document.getElementById('color-input-grid').hasChildNodes()) {
+                createColorButtons();
+            }
+            generateColorPattern();
+        }
+
+        function generateColorPattern() {
+            const colors = ['#FF4D4D', '#2196F3', '#00E676', '#FFEB3B']; 
+            colorGamePattern = [];
+            for (let i = 0; i < COLOR_PATTERN_LENGTH; i++) {
+                colorGamePattern.push(colors[Math.floor(Math.random() * colors.length)]);
+            }
+
+            const display = document.getElementById('color-pattern-display');
+            display.innerHTML = '';
+            
+            colorGamePattern.forEach(color => {
+                const block = document.createElement('div');
+                block.style.cssText = `width: ${100 / COLOR_PATTERN_LENGTH}%; height: 100%; float: left; background-color: ${color};`;
+                display.appendChild(block);
+            });
+
+            setTimeout(() => {
+                display.innerHTML = '<span style="color:#fff; line-height:50px;">覚えた順番に入力開始！</span>';
+                colorGameInput = []; 
+                Array.from(document.getElementById('color-input-grid').children).forEach(btn => btn.style.border = 'none');
+            }, 1500);
+        }
+
+        function createColorButtons() {
+            const colors = ['#FF4D4D', '#2196F3', '#00E676', '#FFEB3B']; 
+            const grid = document.getElementById('color-input-grid');
+            
+            colors.forEach(color => {
+                const button = document.createElement('button');
+                button.style.backgroundColor = color;
+                button.setAttribute('data-color', color);
+                button.addEventListener('click', handleColorInput);
+                grid.appendChild(button);
+            });
+        }
+
+        function handleColorInput(e) {
+            const selectedColor = e.target.getAttribute('data-color');
+            colorGameInput.push(selectedColor);
+            
+            e.target.style.border = '3px solid #ffeb3b';
+            setTimeout(() => { e.target.style.border = 'none'; }, 200);
+
+            if (colorGameInput.length === COLOR_PATTERN_LENGTH) {
+                checkColorPattern();
+            }
+        }
+
+        function checkColorPattern() {
+            const msg = document.getElementById('color-msg');
+            
+            const isCorrect = colorGameInput.every((color, index) => color === colorGamePattern[index]);
+
+            if (isCorrect) {
+                msg.innerText = "成功！警報停止！";
+                setTimeout(finishAlarm, 500);
+            } else {
+                colorGameAttempts--;
+                document.getElementById('color-attempts').innerText = colorGameAttempts;
+                msg.innerText = `間違いです。残り ${colorGameAttempts} 回`;
+
+                if (colorGameAttempts <= 0) {
+                    msg.innerText = "最終失敗！算数からやり直し！";
+                    setTimeout(() => {
+                        screens.color.style.display = 'none';
+                        startAlarm(); 
+                    }, 1000);
+                } else {
+                    colorGameInput = [];
+                    generateColorPattern(); 
+                }
+            }
+        }
+
+        // 完全停止
+        function finishAlarm() {
+            if (moveInterval) clearInterval(moveInterval); // 🔴【修正点】停止を確実にする
+            resetAll();
+            alert("ミッションクリア！完全覚醒しました！");
+        }
+
+        /* --- タイマー設定 --- */
+        document.getElementById('btn-set').addEventListener('click', () => {
+            if(audioCtx.state === 'suspended') audioCtx.resume();
+
+            const h = parseInt(document.getElementById('alarm-h').value);
+            const m = parseInt(document.getElementById('alarm-m').value);
+            const ms = (h * 60 + m) * 60 * 1000;
+
+            if (ms <= 0) return alert("時間を設定してください");
+
+            screens.setup.style.display = 'none';
+            screens.countdown.style.display = 'block';
+
+            const endTime = new Date().getTime() + ms;
+            
+            if(alarmTimer) clearInterval(alarmTimer);
+            alarmTimer = setInterval(() => {
+                const left = endTime - new Date().getTime();
+                if (left <= 0) {
+                    clearInterval(alarmTimer);
+                    startAlarm();
+                } else {
+                    const hh = Math.floor(left / 3600000);
+                    const mm = Math.floor((left % 3600000) / 60000);
+                    const ss = Math.floor((left % 60000) / 1000);
+                    document.getElementById('timer-display').innerText = 
+                        `${hh}:${mm<10?'0'+mm:mm}:${ss<10?'0'+ss:ss}`;
+                }
+            }, 1000);
+        });
+
+        document.getElementById('btn-cancel').addEventListener('click', resetAll);
+        
+        document.body.addEventListener('click', () => {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+        }, { once: true });
+    </script>
+</body>
+</html>
